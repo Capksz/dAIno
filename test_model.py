@@ -5,7 +5,6 @@ import time
 if __name__ == "__main__":
     env = DinoEnv()
 
-    # Load the saved model
     model = PPO.load("dino_ppo_model", device="cpu")
 
     obs = env.reset()[0]
