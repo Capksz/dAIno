@@ -1,0 +1,14 @@
+Model 1:
+        if done:
+            reward = -10000
+        else:
+            # X-axis overlap + Y-axis non-overlap = successful dodge
+            if trex_x + trex_width > obs1_x and trex_x < obs1_x + obs1_width:
+                if trex_y + trex_height < obs1_y or trex_y > obs1_y + obs1_height:
+                    reward = 100  # dodged it
+                else:
+                    reward = -10  # overlapping, maybe risky
+            else:
+                reward = 1  # no obstacle nearby
+
+model 2:

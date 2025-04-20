@@ -12,10 +12,12 @@ class DinoEnv(gym.Env):
         self._start_game()
 
         self.action_space = spaces.Discrete(3)
-        # Observation: [trex_y, obstacle_x, obstacle_y, obstacle_width]
-        self.observation_space = spaces.Box(low=np.array([0, 0, 0, 0]),
-                                            high=np.array([150, 600, 150, 50]),
-                                            dtype=np.float32)
+        # Observation: [trex_x, trex_y, trex_width, trex_height, obs1_x, obs1_y, obs1_width, obs1_height, obs2_x, obs2_y, obs2_width, obs2_height]
+        self.observation_space = spaces.Box(
+            low=np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32),
+            high=np.array([150, 600, 150, 150, 150, 600, 150, 150, 150, 600, 150, 150], dtype=np.float32),
+            dtype=np.float32
+        )
 
     def _init_browser(self):
         chrome_options = Options()
@@ -53,13 +55,22 @@ class DinoEnv(gym.Env):
         obs = state["obs"]
         done = state["crashed"]
 
+        # obs has the trex information (x, y, width, height) and the first 2 obstacles that it has not fully passed
+        trex_x, trex_y, trex_width, trex_height, obs1_x, obs1_y, obs1_width, obs1_height, obs2_x, obs2_y, obs2_width, obs2_height = obs
+
+        reward = 0
         if done:
-            reward = -10000
+            reward = -100
         else:
-            if action == 0:
-                reward = 2.0
+            # X-axis overlap + Y-axis non-overlap = successful dodge
+            if trex_x + trex_width > obs1_x and trex_x < obs1_x + obs1_width:
+                if trex_y + trex_height < obs1_y or trex_y > obs1_y + obs1_height:
+                    reward = 10  # dodged it
+                else:
+                    reward = -5  # overlapping, maybe risky
             else:
-                reward = 1.0
+                reward = 1  # no obstacle nearby
+        reward = max(min(reward, 10), -100)
         print(action, reward)
         terminated = done
         truncated = False
@@ -70,7 +81,13 @@ class DinoEnv(gym.Env):
         try:
             distance = self.driver.execute_script("return Runner.instance_.distanceRan")
             crashed = self.driver.execute_script("return Runner.instance_.crashed")
+            trex_x = self.driver.execute_script("return Runner.instance_.tRex.xPos")
             trex_y = self.driver.execute_script("return Runner.instance_.tRex.yPos")
+            width = self.driver.execute_script("return Runner.instance_.tRex.config.WIDTH")
+            height = self.driver.execute_script("return Runner.instance_.tRex.config.HEIGHT")
+            ducking = self.driver.execute_script("return Runner.instance_.tRex.ducking")
+            duck_width = self.driver.execute_script("return Runner.instance_.tRex.config.WIDTH_DUCK")
+            duck_height = self.driver.execute_script("return Runner.instance_.tRex.config.HEIGHT_DUCK")
             trex_jump = self.driver.execute_script("return Runner.instance_.tRex.jumping")
             trex_duck = self.driver.execute_script("return Runner.instance_.tRex.ducking")
             trex_jump_velocity = self.driver.execute_script("return Runner.instance_.tRex.jumpVelocity")
@@ -89,16 +106,36 @@ class DinoEnv(gym.Env):
                 return [];
             """)
 
-            if obstacles:
-                first = obstacles[0]
-                obs_array = np.array([trex_y, first['xPos'], first['yPos'], first['width']], dtype=np.float32)
-            else:
-                obs_array = np.array([trex_y, 600, 0, 0], dtype=np.float32)
-            print(obstacles)
+            if trex_duck:
+                width = duck_width
+                height = duck_height
+
+                # Sort obstacles by xPos (left boundary)
+            obstacles.sort(key=lambda o: o['xPos'])
+
+            # Skip all obstacles that are fully behind the Dino
+            relevant_obstacles = [
+                obs for obs in obstacles
+                if obs['xPos'] + obs['width'] >= trex_x  # if obstacle not fully passed
+            ]
+
+            # Get up to 2 relevant obstacles
+            obs1 = relevant_obstacles[0] if len(relevant_obstacles) > 0 else {"xPos": 600, "yPos": 0, "width": 0,
+                                                                              "height": 0}
+            obs2 = relevant_obstacles[1] if len(relevant_obstacles) > 1 else {"xPos": 600, "yPos": 0, "width": 0,
+                                                                              "height": 0}
+
+            obs_array = np.array([
+                trex_x, trex_y, width, height,
+                obs1['xPos'], obs1['yPos'], obs1['width'], obs1['height'],
+                obs2['xPos'], obs2['yPos'], obs2['width'], obs2['height']
+            ], dtype=np.float32)
+
             return {"obs": obs_array, "crashed": crashed}
+
         except Exception as e:
             print("JS read error:", e)
-            return {"obs": np.zeros(4), "crashed": True}
+            return {"obs": np.zeros(12, dtype=np.float32), "crashed": True}
 
     def _send_action(self, action):
         if action == 0:
