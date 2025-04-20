@@ -11,6 +11,8 @@ class DinoEnv(gym.Env):
         self.driver = self._init_browser()
         self._start_game()
 
+        self.last_distance = 0
+
         self.action_space = spaces.Discrete(3)
         # Observation: [trex_x, trex_y, trex_width, trex_height, obs1_x, obs1_y, obs1_width, obs1_height, obs2_x, obs2_y, obs2_width, obs2_height]
         self.observation_space = spaces.Box(
@@ -46,6 +48,7 @@ class DinoEnv(gym.Env):
         self.driver.refresh()
         time.sleep(1.5)
         self._start_game()
+        self.last_distance = 0
         return self._get_game_state()["obs"], {}
 
     def step(self, action):
