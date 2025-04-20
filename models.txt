@@ -12,3 +12,36 @@ Model 1:
                 reward = 1  # no obstacle nearby
 
 model 2:
+reward = 0
+        if done:
+            reward = -100
+        else:
+            # X-axis overlap + Y-axis non-overlap = successful dodge
+            if trex_x + trex_width > obs1_x and trex_x < obs1_x + obs1_width:
+                if trex_y + trex_height < obs1_y or trex_y > obs1_y + obs1_height:
+                    reward = 10  # dodged it
+                else:
+                    reward = -5  # overlapping, maybe risky
+            else:
+                reward = 1  # no obstacle nearby
+        reward = max(min(reward, 10), -100)
+        print(action, reward)
+        terminated = done
+        truncated = False
+        info = {}
+        return obs, reward, terminated, truncated, info
+
+model 3:
+state = self._get_game_state()
+        obs = state["obs"]
+        done = state["crashed"]
+        distance_now = state["distance"]
+
+        reward = distance_now - self.last_distance
+        self.last_distance = distance_now
+
+        if done:
+            reward = -10
+
+        print(action, reward)
+        return obs, reward, done, False, {}

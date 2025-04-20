@@ -45,40 +45,28 @@ class DinoEnv(gym.Env):
         if seed is not None:
             np.random.seed(seed)
 
-        self.driver.refresh()
-        time.sleep(1.5)
-        self._start_game()
-        self.last_distance = 0
+        self.driver.execute_script("Runner.instance_.restart()")
+        time.sleep(0.05)
+        self.last_distance = self.driver.execute_script("return Runner.instance_.distanceRan")
         return self._get_game_state()["obs"], {}
 
     def step(self, action):
         self._send_action(action)
         time.sleep(0.1)
+
         state = self._get_game_state()
         obs = state["obs"]
         done = state["crashed"]
+        distance_now = state["distance"]
 
-        # obs has the trex information (x, y, width, height) and the first 2 obstacles that it has not fully passed
-        trex_x, trex_y, trex_width, trex_height, obs1_x, obs1_y, obs1_width, obs1_height, obs2_x, obs2_y, obs2_width, obs2_height = obs
+        reward = distance_now - self.last_distance
+        self.last_distance = distance_now
 
-        reward = 0
         if done:
-            reward = -100
-        else:
-            # X-axis overlap + Y-axis non-overlap = successful dodge
-            if trex_x + trex_width > obs1_x and trex_x < obs1_x + obs1_width:
-                if trex_y + trex_height < obs1_y or trex_y > obs1_y + obs1_height:
-                    reward = 10  # dodged it
-                else:
-                    reward = -5  # overlapping, maybe risky
-            else:
-                reward = 1  # no obstacle nearby
-        reward = max(min(reward, 10), -100)
+            reward = -10
+
         print(action, reward)
-        terminated = done
-        truncated = False
-        info = {}
-        return obs, reward, terminated, truncated, info
+        return obs, reward, done, False, {}
 
     def _get_game_state(self):
         try:
@@ -134,7 +122,7 @@ class DinoEnv(gym.Env):
                 obs2['xPos'], obs2['yPos'], obs2['width'], obs2['height']
             ], dtype=np.float32)
 
-            return {"obs": obs_array, "crashed": crashed}
+            return {"obs": obs_array, "crashed": crashed, "distance": distance}
 
         except Exception as e:
             print("JS read error:", e)

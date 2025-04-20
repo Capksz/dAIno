@@ -12,7 +12,7 @@ def make_env():
     return _init
 
 if __name__ == "__main__":
-    num_envs = 4  # This makes num_env number of browsers for faster training (can be reduced)
+    num_envs = 1  # This makes num_env number of browsers for faster training (can be reduced)
     env = SubprocVecEnv([make_env() for _ in range(num_envs)])
 
     model = PPO("MlpPolicy", env, device="cpu", verbose=1)
