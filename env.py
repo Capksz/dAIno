@@ -28,6 +28,7 @@ class DinoEnv(gym.Env):
         chrome_options.add_argument("--window-size=1200x600")
         chrome_options.add_argument("--disable-dev-shm-usage")
         # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--mute-audio")
 
         driver = webdriver.Chrome(options=chrome_options)
         driver.get("https://trex-runner.com/")
@@ -47,7 +48,6 @@ class DinoEnv(gym.Env):
 
         self.driver.execute_script("Runner.instance_.restart()")
         time.sleep(0.05)
-        self.last_distance = self.driver.execute_script("return Runner.instance_.distanceRan")
         return self._get_game_state()["obs"], {}
 
     def step(self, action):
@@ -57,13 +57,11 @@ class DinoEnv(gym.Env):
         state = self._get_game_state()
         obs = state["obs"]
         done = state["crashed"]
-        distance_now = state["distance"]
 
-        reward = distance_now - self.last_distance
-        self.last_distance = distance_now
+        reward = 1
 
         if done:
-            reward = -10
+            reward = -100
 
         print(action, reward)
         return obs, reward, done, False, {}

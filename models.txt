@@ -33,7 +33,7 @@ reward = 0
         info = {}
         return obs, reward, terminated, truncated, info
 
-model 3:
+model 3 and 4:
 Distance based
 state = self._get_game_state()
         obs = state["obs"]
@@ -48,3 +48,4 @@ state = self._get_game_state()
 
         print(action, reward)
         return obs, reward, done, False, {}
+

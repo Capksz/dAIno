@@ -14,6 +14,7 @@ if __name__ == "__main__":
 
     while not done:
         action, _ = model.predict(obs, deterministic=True)
+        print(action)
 
         obs, reward, done, truncated, info = env.step(action)
         total_reward += reward
