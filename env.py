@@ -27,7 +27,7 @@ class DinoEnv(gym.Env):
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--window-size=1200x600")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")
 
         driver = webdriver.Chrome(options=chrome_options)
         driver.get("https://trex-runner.com/")
@@ -55,15 +55,53 @@ class DinoEnv(gym.Env):
         time.sleep(0.1)
 
         state = self._get_game_state()
-        obs = state["obs"]
-        done = state["crashed"]
-        distance_now = state["distance"]
+        obs        = state["obs"]
+        done       = state["crashed"]
+        distance   = state["distance"]
+        obs1  = state["obs1"]
+        obs2  = state["obs2"]
+        obs1_type = obs1["type"]
+        obs2_type = obs2["type"]
 
-        reward = distance_now - self.last_distance
-        self.last_distance = distance_now
+        trex_x, trex_y, trex_w, trex_h = obs[0], obs[1], obs[2], obs[3]
+        obs1_x, obs1_y, obs1_w, obs1_h = obs[4], obs[5], obs[6], obs[7]
 
+        # base distance reward (Marwah et al. 2020)
+        delta = distance - self.last_distance
+        self.last_distance = distance
+        reward = delta
+
+        # obstacle type strategy
+        is_cactus = (obs1_type in [0, 1])
+        is_bird   = (obs1_type == 2)
+
+        if is_cactus:
+            if action == 1: # jump
+                reward += 1.0
+            else:
+                reward -= 0.5
+
+        if is_bird:
+            if action == 2: # duck
+                reward += 1.0
+            else:
+                reward -= 0.5
+
+
+        # proximity penalty if too close (danger zone)
+        danger_start = trex_x + trex_w
+        danger_end   = danger_start + 50
+        if danger_start <= obs1_x <= danger_end:
+            reward -= 0.5
+
+
+        # clear‐obstacle bonus (Thurler et al. 2021)
+        if (obs1_x + obs1_w) < trex_x:
+            reward += 1.0
+
+        # crash penalty (Vu & Tran 2020)
         if done:
-            reward = -10
+            reward -= 100
 
         print(action, reward)
         return obs, reward, done, False, {}
@@ -111,10 +149,8 @@ class DinoEnv(gym.Env):
             ]
 
             # Get up to 2 relevant obstacles
-            obs1 = relevant_obstacles[0] if len(relevant_obstacles) > 0 else {"xPos": 600, "yPos": 0, "width": 0,
-                                                                              "height": 0}
-            obs2 = relevant_obstacles[1] if len(relevant_obstacles) > 1 else {"xPos": 600, "yPos": 0, "width": 0,
-                                                                              "height": 0}
+            obs1 = relevant_obstacles[0] if len(relevant_obstacles) > 0 else {"xPos": 600, "yPos": 0, "width": 0, "height": 0, "type": -1}
+            obs2 = relevant_obstacles[1] if len(relevant_obstacles) > 1 else {"xPos": 600, "yPos": 0, "width": 0, "height": 0, "type": -1}
 
             obs_array = np.array([
                 trex_x, trex_y, width, height,
@@ -122,7 +158,8 @@ class DinoEnv(gym.Env):
                 obs2['xPos'], obs2['yPos'], obs2['width'], obs2['height']
             ], dtype=np.float32)
 
-            return {"obs": obs_array, "crashed": crashed, "distance": distance}
+            return {"obs": obs_array, "crashed": crashed, "distance": distance,
+                    "obs1": obs1,"obs2": obs2}
 
         except Exception as e:
             print("JS read error:", e)

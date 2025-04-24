@@ -1,3 +1,11 @@
+Model 0:
+survival
+        reward = 1
+
+        if done:
+            reward = -100
+
+
 Model 1:
 Extreme
         if done:
@@ -45,6 +53,97 @@ state = self._get_game_state()
 
         if done:
             reward = -10
+
+        print(action, reward)
+        return obs, reward, done, False, {}
+
+model 4:
+literature
+    state = self._get_game_state()
+    obs        = state["obs"]
+    done       = state["crashed"]
+    distance   = state["distance"]
+    trex_x, trex_w = obs[0], obs[2]
+    obs1_x, obs1_w = obs[4], obs[6]
+
+    # base distance reward (Marwah et al. 2020)
+    delta = distance - self.last_distance
+    self.last_distance = distance
+
+    # survival bonus
+    survival_bonus = 1
+
+    # clear‐obstacle bonus (Thurler et al. 2021)
+    clear_bonus = 1.0 if (obs1_x + obs1_w) < trex_x else 0.0
+
+    # proximity penalty if too close to next obstacle
+    danger_zone = (trex_x + trex_w, trex_x + trex_w + 50)
+    proximity_penalty = -0.5 if danger_zone[0] <= obs1_x <= danger_zone[1] else 0.0
+
+    # crash penalty (Vu & Tran 2020)
+    if done:
+        reward = -100
+    else:
+        reward = delta + survival_bonus + clear_bonus + proximity_penalty
+
+    print(action, reward)
+    return obs, reward, done, False, {}
+
+
+model 4:
+literature2
+    def step(self, action):
+        self._send_action(action)
+        time.sleep(0.1)
+
+        state = self._get_game_state()
+        obs        = state["obs"]
+        done       = state["crashed"]
+        distance   = state["distance"]
+        obs1  = state["obs1"]
+        obs2  = state["obs2"]
+        obs1_type = obs1["type"]
+        obs2_type = obs2["type"]
+
+        trex_x, trex_y, trex_w, trex_h = obs[0], obs[1], obs[2], obs[3]
+        obs1_x, obs1_y, obs1_w, obs1_h = obs[4], obs[5], obs[6], obs[7]
+
+        # base distance reward (Marwah et al. 2020)
+        delta = distance - self.last_distance
+        self.last_distance = distance
+        reward = delta
+
+        # obstacle type strategy
+        is_cactus = (obs1_type in [0, 1])
+        is_bird   = (obs1_type == 2)
+
+        if is_cactus:
+            if action == 1: # jump
+                reward += 1.0
+            else:
+                reward -= 0.5
+
+        if is_bird:
+            if action == 2: # duck
+                reward += 1.0
+            else:
+                reward -= 0.5
+
+
+        # proximity penalty if too close (danger zone)
+        danger_start = trex_x + trex_w
+        danger_end   = danger_start + 50
+        if danger_start <= obs1_x <= danger_end:
+            reward -= 0.5
+
+
+        # clear‐obstacle bonus (Thurler et al. 2021)
+        if (obs1_x + obs1_w) < trex_x:
+            reward += 1.0
+
+        # crash penalty (Vu & Tran 2020)
+        if done:
+            reward -= 100
 
         print(action, reward)
         return obs, reward, done, False, {}
