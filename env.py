@@ -14,10 +14,10 @@ class DinoEnv(gym.Env):
         self.last_distance = 0
 
         self.action_space = spaces.Discrete(3)
-        # Observation: [trex_x, trex_y, trex_width, trex_height, obs1_x, obs1_y, obs1_width, obs1_height, obs2_x, obs2_y, obs2_width, obs2_height]
+        # Observation: [trex_y, trex_speed, distance_to_next_obstacle, obstacle_y, distance_to_second_obstacle, obs2_y]
         self.observation_space = spaces.Box(
-            low=np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32),
-            high=np.array([150, 600, 150, 150, 150, 600, 150, 150, 150, 600, 150, 150], dtype=np.float32),
+            low=np.array([0, 6, 0, 0, 0, 0], dtype=np.float32),
+            high=np.array([100, 13, 600, 100, 600, 100], dtype=np.float32),
             dtype=np.float32
         )
 
@@ -57,11 +57,34 @@ class DinoEnv(gym.Env):
         state = self._get_game_state()
         obs = state["obs"]
         done = state["crashed"]
+        trex_width = state["trex_width"]
+
+        trex_y, trex_speed, obs1_dist, obs1_y, obs2_dist, obs2_y = obs
+
+        distance_to_obstacle_1 = obs1_dist - trex_width
+        distance_to_obstacle_2 = obs2_dist - trex_width
+        distance_to_obstacle = distance_to_obstacle_1 if distance_to_obstacle_1 > 0 else distance_to_obstacle_2
 
         reward = 1
-
         if done:
             reward = -100
+        else:
+            if int(action) == 0:
+                if 0 < distance_to_obstacle <= 50:
+                    reward -= 8
+
+            elif int(action) == 1 or int(action) == 2:
+                if 0 < distance_to_obstacle <= 50:
+                    reward += 10
+                else:
+                    reward -= 8
+
+        # # X-axis overlap + Y-axis non-overlap = successful dodge
+        # if trex_x + trex_width > obs1_x and trex_x < obs1_x + obs1_width:
+        #     if trex_y + trex_height < obs1_y or trex_y > obs1_y + obs1_height:
+        #         reward += 5  # dodged it
+        #     else:
+        #         reward -= 3  # overlapping, maybe risky
 
         print(action, reward)
         return obs, reward, done, False, {}
@@ -80,7 +103,8 @@ class DinoEnv(gym.Env):
             trex_jump = self.driver.execute_script("return Runner.instance_.tRex.jumping")
             trex_duck = self.driver.execute_script("return Runner.instance_.tRex.ducking")
             trex_jump_velocity = self.driver.execute_script("return Runner.instance_.tRex.jumpVelocity")
-
+            current_speed = self.driver.execute_script("return Runner.instance_.currentSpeed")
+            print(trex_x)
             obstacles = self.driver.execute_script("""
                 const obs = Runner.instance_.horizon.obstacles;
                 if (obs.length > 0) {
@@ -108,19 +132,24 @@ class DinoEnv(gym.Env):
                 if obs['xPos'] + obs['width'] >= trex_x  # if obstacle not fully passed
             ]
 
+            # print(obstacles)
+
             # Get up to 2 relevant obstacles
             obs1 = relevant_obstacles[0] if len(relevant_obstacles) > 0 else {"xPos": 600, "yPos": 0, "width": 0,
-                                                                              "height": 0}
+                                                                              "height": 0, "type": 3}
             obs2 = relevant_obstacles[1] if len(relevant_obstacles) > 1 else {"xPos": 600, "yPos": 0, "width": 0,
-                                                                              "height": 0}
-
+                                                                              "height": 0, "type": 3}
+            obs_type_conversion = {"CACTUS_SMALL": 0, "CACTUS_LARGE": 1, "PTERODACTYL": 2, 3: 3}
+            obs1["type"] = obs_type_conversion[obs1["type"]]
+            obs2["type"] = obs_type_conversion[obs2["type"]]
             obs_array = np.array([
-                trex_x, trex_y, width, height,
-                obs1['xPos'], obs1['yPos'], obs1['width'], obs1['height'],
-                obs2['xPos'], obs2['yPos'], obs2['width'], obs2['height']
+                trex_y, current_speed,
+                obs1['xPos'] - trex_x, obs1['yPos'],
+                obs2['xPos'] - trex_x, obs2['yPos'],
             ], dtype=np.float32)
 
-            return {"obs": obs_array, "crashed": crashed, "distance": distance}
+            print(obs_array)
+            return {"obs": obs_array, "crashed": crashed, "distance": distance, "trex_width":width}
 
         except Exception as e:
             print("JS read error:", e)
@@ -133,14 +162,19 @@ class DinoEnv(gym.Env):
         elif action == 1:  # jump
             self.driver.execute_script("""
                 document.dispatchEvent(new KeyboardEvent('keydown', {keyCode: 32}));
+            """)
+            self.driver.execute_script("""
                 document.dispatchEvent(new KeyboardEvent('keyup', {keyCode: 32}));
-                """)
+            """)
 
         elif action == 2:
             self.driver.execute_script("""
                 document.dispatchEvent(new KeyboardEvent('keydown', {keyCode: 40}));
+            """)
+            # time.sleep(0.2)
+            self.driver.execute_script("""
                 document.dispatchEvent(new KeyboardEvent('keyup', {keyCode: 40}));
-                """)
+            """)
 
     def close(self):
         self.driver.quit()

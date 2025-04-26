@@ -49,3 +49,51 @@ state = self._get_game_state()
         print(action, reward)
         return obs, reward, done, False, {}
 
+Model 5:
+    def step(self, action):
+        self._send_action(action)
+        # time.sleep(0.1)
+
+        state = self._get_game_state()
+        obs = state["obs"]
+        done = state["crashed"]
+
+        trex_x, trex_y, trex_width, trex_height, obs1_x, obs1_y, obs1_width, obs1_height, obs2_x, obs2_y, obs2_width, obs2_height = obs
+
+        distance_to_obstacle_1 = obs1_x - (trex_x + trex_width)
+        distance_to_obstacle_2 = obs2_x - (trex_x + trex_width)
+        distance_to_obstacle = distance_to_obstacle_1 if distance_to_obstacle_1 > 0 else distance_to_obstacle_2
+        obstacle_types = state["obstacle_types"]
+        closest_obstacle_type = obstacle_types[0]if distance_to_obstacle_1 > 0 else distance_to_obstacle_2
+
+        reward = 0.5
+        if done:
+            reward = -100
+        else:
+            if int(action) in {1, 2}:
+                if 0 < distance_to_obstacle <= 50:
+                    reward += 20
+                else:
+                    reward -= 2
+
+
+Model 6:
+reward = 1
+        if done:
+            reward = -200
+        else:
+            if int(action) == 0:
+                if 0 < distance_to_obstacle <= 50:
+                    reward -= 8
+
+            elif int(action) == 1:
+                if 0 < distance_to_obstacle <= 50 and "CACTUS" in closest_obstacle_type:
+                    reward += 15
+                else:
+                    reward -= 8
+
+            elif int(action) == 2:
+                if 0 < distance_to_obstacle <= 50 and "PTERODACTYL" in closest_obstacle_type:
+                    reward += 25
+                else:
+                    reward -= 8

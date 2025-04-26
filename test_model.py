@@ -1,11 +1,12 @@
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, DQN
+from dino_env_playwright import DinoEnv
 from env import DinoEnv
 import time
 
 if __name__ == "__main__":
     env = DinoEnv()
 
-    model = PPO.load("dino_ppo_model", device="cpu")
+    model = DQN.load("dino_ppo_model_continued_1,500,000", device="cpu")
 
     obs = env.reset()[0]
 
