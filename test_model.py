@@ -34,7 +34,7 @@ def evaluate_model(model_path, num_episodes=100):
     return result
 
 if __name__ == "__main__":
-    model_file = "dino_dqn_model_literature2.1_100k"
+    model_file = "dino_dqn_model_literature2.1_100k" # change to your model
     num_episodes = 100
 
     base = os.path.basename(model_file) 
@@ -73,8 +73,8 @@ if __name__ == "__main__":
     ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper left')
 
     # save it to files
-    output_dir = "eval_res"
+    output_dir = "eval_test"
     os.makedirs(output_dir, exist_ok=True)
-    out_path = os.path.join("eval_res", f"{name}.png")
+    out_path = os.path.join("eval_test", f"{name}.png")
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"Saved evaluation plot to {out_path}")
