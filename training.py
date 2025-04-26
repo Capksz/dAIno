@@ -3,15 +3,14 @@ import time
 import random
 import numpy as np
 from stable_baselines3 import DQN
-from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3.common.callbacks import CheckpointCallback
-import glob
-import os
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+import os, glob
 
-def make_env():
-    def _init():
-        return DinoEnv()
-    return _init
+def make_env(name, rank):
+    filename = os.path.join("eval_train", f"{name}_monitor_{rank}.csv")
+    return lambda: Monitor(DinoEnv(), filename=filename)
 
 def find_latest_checkpoint(path, prefix):
     # find files like prefix_<step>_steps.zip
@@ -23,18 +22,27 @@ def find_latest_checkpoint(path, prefix):
     return files[-1]
 
 if __name__ == "__main__":
-    num_envs = 6
-    env = SubprocVecEnv([make_env() for _ in range(num_envs)])
+    name = "literature2-1_100k"
 
-    ckpt_path = find_latest_checkpoint("./checkpoints", "dino_dqn_checkpoint")
-    if ckpt_path:
-        print("Loading checkpoint:", ckpt_path)
-        model = DQN.load(ckpt_path, env=env, device="cpu")
-        # continue training without resetting the timestep counter
+    os.makedirs("checkpoints", exist_ok=True)
+    os.makedirs("tensorboard", exist_ok=True)
+    os.makedirs("eval_train", exist_ok=True)
+    num_envs = 6
+    env_fns = [make_env(name, i) for i in range(num_envs)]
+    env = DummyVecEnv(env_fns)
+
+    ckpt = find_latest_checkpoint("checkpoints", "dino_dqn_checkpoint")
+    if ckpt:
+        print("Loading checkpoint:", ckpt)
+        model = DQN.load(
+            ckpt,
+            env=env,
+            device="cpu",
+            tensorboard_log="tensorboard/"
+        )
         reset_timesteps = False
     else:
-        print("No checkpoint found; starting fresh.")
-
+        print("Starting fresh training")
         model = DQN(
             policy="MlpPolicy",
             env=env,
@@ -47,20 +55,36 @@ if __name__ == "__main__":
             train_freq=4,
             device="cpu",
             verbose=1,
+            tensorboard_log="tensorboard/"
         )
         reset_timesteps = True
 
     # Create a callback that saves the model every 10,000 steps
     checkpoint_callback = CheckpointCallback(
-        save_freq=10_000,  # Save every 10,000 steps
-        save_path='./checkpoints/',  # Folder to save checkpoints
-        name_prefix='dino_dqn_checkpoint'  # Prefix for checkpoint files
+        save_freq=10_000,
+        save_path="checkpoints/",
+        name_prefix="dino_dqn_checkpoint"
     )
 
-    model.learn(total_timesteps=500_000, callback=checkpoint_callback,reset_num_timesteps=reset_timesteps)
-    model.save("dino_dqn_model_distancebase_500k")
+    # Evaluation callback (deterministic eval every 20k steps)
+    eval_env = DummyVecEnv([make_env(name, "eval")])
+    eval_callback = EvalCallback(
+        eval_env,
+        best_model_save_path="checkpoints/",
+        log_path="tensorboard/",
+        eval_freq=20_000,
+        n_eval_episodes=5,
+        deterministic=True,
+    )
 
-    # next to train
-    # model.learn(total_timesteps=100_000, callback=checkpoint_callback)
-    # model.save("dino_dqn_model_literature2_100k")
+    # Train
+    model.learn(
+        total_timesteps=100_000,
+        callback=[checkpoint_callback, eval_callback],
+        reset_num_timesteps=reset_timesteps
+    )
+
+    # Save
+    model.save(f"dino_dqn_model_{name}")
     env.close()
+    eval_env.close()

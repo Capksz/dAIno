@@ -147,3 +147,42 @@ literature2
 
         print(action, reward)
         return obs, reward, done, False, {}
+
+model 5
+literature 2.1: scale down the crash penalty
+        # base distance reward (Marwah et al. 2020)
+        delta = distance - self.last_distance
+        self.last_distance = distance
+        reward = delta
+
+        # obstacle type strategy
+        is_cactus = (obs1_type in [0, 1])
+        is_bird   = (obs1_type == 2)
+
+        if is_cactus:
+            if action == 1: # jump
+                reward += 1.0
+            else:
+                reward -= 0.5
+
+        if is_bird:
+            if action == 2: # duck
+                reward += 1.0
+            else:
+                reward -= 0.5
+
+
+        # proximity penalty if too close (danger zone)
+        danger_start = trex_x + trex_w
+        danger_end   = danger_start + 50
+        if danger_start <= obs1_x <= danger_end:
+            reward -= 0.5
+
+
+        # clear‐obstacle bonus (Thurler et al. 2021)
+        if (obs1_x + obs1_w) < trex_x:
+            reward += 1.0
+
+        # crash penalty (Vu & Tran 2020)
+        if done:
+            reward = -10

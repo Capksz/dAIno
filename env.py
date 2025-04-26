@@ -101,7 +101,7 @@ class DinoEnv(gym.Env):
 
         # crash penalty (Vu & Tran 2020)
         if done:
-            reward -= 100
+            reward = -10
 
         print(action, reward)
         return obs, reward, done, False, {}
