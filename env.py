@@ -27,7 +27,7 @@ class DinoEnv(gym.Env):
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--window-size=1200x600")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--mute-audio")
 
         driver = webdriver.Chrome(options=chrome_options)
@@ -58,26 +58,27 @@ class DinoEnv(gym.Env):
         obs = state["obs"]
         done = state["crashed"]
         trex_width = state["trex_width"]
+        trex_x = state["trex_x"]
 
         trex_y, trex_speed, obs1_dist, obs1_y, obs2_dist, obs2_y = obs
 
-        distance_to_obstacle_1 = obs1_dist - trex_width
-        distance_to_obstacle_2 = obs2_dist - trex_width
+        distance_to_obstacle_1 = obs1_dist - (trex_width + trex_x)
+        distance_to_obstacle_2 = obs2_dist - (trex_width + trex_x)
         distance_to_obstacle = distance_to_obstacle_1 if distance_to_obstacle_1 > 0 else distance_to_obstacle_2
 
         reward = 1
         if done:
             reward = -100
-        else:
-            if int(action) == 0:
-                if 0 < distance_to_obstacle <= 50:
-                    reward -= 8
-
-            elif int(action) == 1 or int(action) == 2:
-                if 0 < distance_to_obstacle <= 50:
-                    reward += 10
-                else:
-                    reward -= 8
+        # else:
+        #     if int(action) == 0:
+        #         if 0 < distance_to_obstacle <= 50:
+        #             reward -= 8
+        #
+        #     elif int(action) == 1 or int(action) == 2:
+        #         if 0 < distance_to_obstacle <= 50:
+        #             reward += 10
+        #         else:
+        #             reward -= 8
 
         # # X-axis overlap + Y-axis non-overlap = successful dodge
         # if trex_x + trex_width > obs1_x and trex_x < obs1_x + obs1_width:
@@ -104,7 +105,6 @@ class DinoEnv(gym.Env):
             trex_duck = self.driver.execute_script("return Runner.instance_.tRex.ducking")
             trex_jump_velocity = self.driver.execute_script("return Runner.instance_.tRex.jumpVelocity")
             current_speed = self.driver.execute_script("return Runner.instance_.currentSpeed")
-            print(trex_x)
             obstacles = self.driver.execute_script("""
                 const obs = Runner.instance_.horizon.obstacles;
                 if (obs.length > 0) {
@@ -148,8 +148,8 @@ class DinoEnv(gym.Env):
                 obs2['xPos'] - trex_x, obs2['yPos'],
             ], dtype=np.float32)
 
-            print(obs_array)
-            return {"obs": obs_array, "crashed": crashed, "distance": distance, "trex_width":width}
+            # print(obs_array)
+            return {"obs": obs_array, "crashed": crashed, "distance": distance, "trex_x": trex_x, "trex_width":width}
 
         except Exception as e:
             print("JS read error:", e)
