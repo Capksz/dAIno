@@ -13,7 +13,7 @@ def make_env():
     return _init
 
 if __name__ == "__main__":
-    num_envs = 1 # This makes num_env number of browsers for faster training (can be reduced)
+    num_envs = 40 # This makes num_env number of browsers for faster training (can be reduced)
     env = SubprocVecEnv([make_env() for _ in range(num_envs)])
 
     model = PPO("MlpPolicy", env, device="cpu", verbose=1)
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     )
 
     model.learn(total_timesteps=100_000, callback=checkpoint_callback)
-    model.save("dino_ppo_model_final")
+    model.save("./final_models/dino_ppo_model_simple_500,000")
     env.close()
 
     # Training Continuation if needed
